@@ -1,19 +1,20 @@
 # Arc Paper Trading Bot
 
-Arc向けのpaper trading専用アプリです。Arcチェーンは**読み取り専用**で接続し、RPCからChain IDとネイティブ残高を取得します。実トランザクション、秘密鍵、シードフレーズは使用しません。
+Arc EVMネットワークへ**読み取り専用**で接続する paper trading 管理アプリです。公開ウォレットアドレスのネイティブ残高と Arc の実際の Chain ID を JSON-RPC から取得します。秘密鍵の読み込み、署名、送金、実トランザクション送信は実装していません。
 
-## Arc設定
+## セットアップ
 
-`.env.example`または`.env.arc.example`を参考に、Replit Secretsへ設定してください。
+`.env.example` を `.env` にコピーし、次を設定します。
 
-```text
+```dotenv
 APP_MODE=paper
 PAPER_TRADING=true
-ARC_RPC_URL=Arcの読み取り用JSON-RPC URL
-WALLET_ADDRESS=残高を確認するEVMウォレットアドレス
+ARC_RPC_URL=https://your-arc-rpc.example
+ARC_NATIVE_SYMBOL=ARC
+WALLET_ADDRESS=0x公開ウォレットアドレス
 ```
 
-`ARC_CHAIN_ID`は表示・設定確認用の任意値です。実際のChain IDは起動時にArc RPCの`eth_chainId`から取得します。RPC URLが未設定の場合、Arc表示は「未接続」になります。
+`WALLET_ADDRESS` は残高を読むだけの公開 EVM アドレスです。`PRIVATE_KEY` は不要で、設定しないでください。
 
 ## 起動
 
@@ -22,21 +23,29 @@ npm install
 npm start
 ```
 
-ブラウザで `http://localhost:3000` を開きます。
+- Dashboard: `http://localhost:3000`
+- Arc ウォレット状態: `GET /api/arc/status`
+- 任意アドレスの残高確認: `GET /api/arc/status?address=0x...`
 
-## Arc API
+Arc API は `eth_chainId` と `eth_getBalance` のみを使用します。RPC の値が未設定・到達不能な場合は、アプリは paper trading を維持したまま Arc 接続を未接続として返します。
 
-- `GET /api/arc/status` — Arc RPC接続、Chain ID、ウォレット残高を取得
-- 残高取得はEVMの`eth_getBalance`を使用します
-- RPCエラー時はHTTP 503を返します
+## Discord コマンド
 
-## Discord
+- `/on`, `/off`, `/status` — 自動売買の ON/OFF と状態
+- `/balance` — paper 残高と Arc ウォレットアドレス
+- `/price` — 模擬価格
+- `/conditions` — 買い・売り条件
+- `/risk` — 損切り・利確
+- `/history` — 取引履歴
+- `/settings` — 監視トークン、条件、リスク設定
+- `/stop`, `/reset-stop` — 緊急停止と解除
 
-既存のDiscord Botはpaper trading操作用です。秘密鍵やBot TokenをGitHub・チャットに貼り付けないでください。Replit Secretsのみで管理してください。
+管理操作は Discord サーバーの Manage Guild 権限、または `DISCORD_ADMIN_USER_IDS` に登録したユーザーだ��が実行できます。
 
 ## 安全制約
 
 - `APP_MODE=paper` と `PAPER_TRADING=true` が必須です。
-- Arc接続は読み取り専用です。
-- 秘密鍵を読み込まず、トランザクション送信メソッドもありません。
-- 価格と取引は模擬データです。
+- Arc 接続は読み取り専用です。
+- 秘密鍵・署名機能・トランザクション送信機能はありません。
+- 価格、残高、売買履歴は paper trading 用です。Arc の実残高は `/api/arc/status` の読み取り値として別途表示されます。
+- Bot Token、秘密情報、秘密鍵を GitHub やチャットへ貼り付けず、Replit Secrets 等で管理してください。
