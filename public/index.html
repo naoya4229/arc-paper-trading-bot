@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arc Paper Trading Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Arc Crypto Dashboard</p>
+          <h1>Paper Trading Console</h1>
+        </div>
+        <button id="emergencyStop" class="danger">緊急停止</button>
+      </header>
+
+      <main class="grid">
+        <section class="card status-card">
+          <h2>Bot状態</h2>
+          <div class="status-row">
+            <span class="label">稼働</span>
+            <button id="toggleBot" class="primary">ON / OFF</button>
+          </div>
+          <div class="kpis">
+            <div>
+              <span class="kpi-label">状態</span>
+              <strong id="botStatus">Stopped</strong>
+            </div>
+            <div>
+              <span class="kpi-label">モード</span>
+              <strong id="mode">Paper</strong>
+            </div>
+            <div>
+              <span class="kpi-label">緊急停止</span>
+              <strong id="emergencyStatus">OFF</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="card wallet-card">
+          <h2>ウォレット</h2>
+          <div class="info-block">
+            <span class="label">ウォレットアドレス</span>
+            <div id="walletAddress">未設定</div>
+          </div>
+          <div class="info-block">
+            <span class="label">残高</span>
+            <div id="walletBalance">0</div>
+          </div>
+          <div class="info-block">
+            <span class="label">現金残高</span>
+            <div id="cashBalance">0</div>
+          </div>
+        </section>
+
+        <section class="card config-card">
+          <h2>設定</h2>
+          <form id="settingsForm">
+            <div class="input-group">
+              <label for="walletAddressInput">ウォレットアドレス</label>
+              <input id="walletAddressInput" type="text" placeholder="0x..." />
+            </div>
+            <div class="input-grid">
+              <div class="input-group">
+                <label for="buyConditionPercent">買い条件 (%)</label>
+                <input id="buyConditionPercent" type="number" min="0" step="0.1" />
+              </div>
+              <div class="input-group">
+                <label for="sellConditionPercent">売り条件 (%)</label>
+                <input id="sellConditionPercent" type="number" min="0" step="0.1" />
+              </div>
+              <div class="input-group">
+                <label for="stopLossPercent">損切り (%)</label>
+                <input id="stopLossPercent" type="number" min="0" step="0.1" />
+              </div>
+              <div class="input-group">
+                <label for="takeProfitPercent">利確 (%)</label>
+                <input id="takeProfitPercent" type="number" min="0" step="0.1" />
+              </div>
+              <div class="input-group">
+                <label for="maxPurchaseAmount">最大購入額</label>
+                <input id="maxPurchaseAmount" type="number" min="0" step="10" />
+              </div>
+              <div class="input-group">
+                <label for="monitoredTokens">監視トークン</label>
+                <input id="monitoredTokens" type="text" placeholder="BTC,ETH,SOL" />
+              </div>
+            </div>
+            <button type="submit" class="primary wide">設定保存</button>
+          </form>
+        </section>
+
+        <section class="card market-card">
+          <h2>市場監視</h2>
+          <div class="toolbar">
+            <button id="refreshPrices" class="secondary">価格更新</button>
+          </div>
+          <div id="tokenTable" class="token-table"></div>
+        </section>
+
+        <section class="card positions-card">
+          <h2>保有状況</h2>
+          <div id="positionsTable" class="position-table"></div>
+        </section>
+
+        <section class="card history-card full-span">
+          <h2>取引履歴</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>時間</th>
+                <th>トークン</th>
+                <th>売買</th>
+                <th>価格</th>
+                <th>数量</th>
+                <th>理由</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
