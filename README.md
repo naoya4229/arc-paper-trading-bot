@@ -1,61 +1,55 @@
-# Discord Bot起動
+# Arc Paper Trading Bot / Discord Bot
 
-このリポジトリには、paper trading管理画面に接続するDiscord Botを含めています。
+Arc向け暗号資産自動売買アプリの安全な土台です。現在は **paper trading（模擬売買）専用** で、実際のブロックチェーン取引は実行しません。
 
-## Discord Botの安全仕様
+## Discordコマンドについて
 
-- Discordから操作できるのはpaper tradingの状態・設定だけです。
-- 実際のブロックチェーントランザクション送信処理はありません。
-- `/status`、`/balance`、`/price` は全ユーザーが利用できます。
-- `/on`、`/off`、`/settings`、`/stop` はDiscordサーバー管理権限、または `DISCORD_ADMIN_USER_IDS` に登録されたユーザーだけが利用できます。
-- Discordの返信はephemeral（実行者だけに表示）です。
-- 秘密鍵はBotへ渡す必要がなく、画面・返信・ログにも出しません。
+Discordのスラッシュコマンド名には英字を使用します。Discordの仕様上、`/残高` のような日本語を実際のコマンド名として登録することはできません。
 
-## 必要環境
+ただし、説明・設定項目・返信は日本語です。Discordの候補一覧から選ぶと、日本語の説明を確認できます。
 
-- Node.js 18以上（`fetch`を使用します）
-- npm
-- Discord Developer Portalで作成したBot
+| コマンド | 日本語の意味 | 権限 |
+| --- | --- | --- |
+| `/status` | Botの状態を表示 | 全員 |
+| `/on` | paper tradingを有効化 | 管理者 |
+| `/off` | paper tradingを無効化 | 管理者 |
+| `/balance` | paper残高を表示 | 全員 |
+| `/price` | トークン価格を表示 | 全員 |
+| `/settings` | paper trading設定を変更 | 管理者 |
+| `/stop` | 緊急停止 | 管理者 |
 
-## 起動手順
-
-### 1. Discord Applicationを作成
-
-1. Discord Developer PortalでNew Applicationを作成
-2. BotページでBotを追加
-3. Bot Tokenを再生成して、Replit Secretsなどの環境変数に保存
-4. OAuth2 URL Generatorで `bot` と `applications.commands` を選択
-5. Bot権限は最低限 `Send Messages` を付与してサーバーへ招待
-
-Bot TokenはGitHub、チャット、READMEへ貼り付けないでください。
-
-### 2. 環境変数を設定
-
-`.env.example` を参考に、Replit Secretsまたはホスティング環境の環境変数へ登録します。
+使用例:
 
 ```text
-PORT=3000
-APP_MODE=paper
-PAPER_TRADING=true
-DISCORD_BOT_TOKEN=DiscordのBot Token
-DISCORD_CLIENT_ID=Application ID
-DISCORD_GUILD_ID=テスト用サーバーID（任意。指定するとコマンド反映が速い）
-DISCORD_ADMIN_USER_IDS=あなたのDiscordユーザーID
-DASHBOARD_URL=http://127.0.0.1:3000
+/status
+/balance
+/price token:BTC
+/settings key:買い条件 value:5
+/settings key:監視トークン value:BTC,ETH,SOL
+/stop
 ```
 
-`DISCORD_ADMIN_USER_IDS` はカンマ区切りで複数指定できます。空欄の場合、変更系コマンドはDiscordサーバーのManage Server権限が必要です。
+`/settings` の `key` は英語の内部値ではなく、日本語表示の選択肢から選びます。値は買い条件・売り条件・損切り・利確・最大購入額が数値、監視トークンがカンマ区切りです。
 
-秘密鍵、シードフレーズ、取引所APIキーは設定しないでください。現在のアプリは実売買をしないため不要です。
+## 安全仕様
 
-### 3. 起動
+- Discordから操作できるのはpaper tradingの状態と設定だけです。
+- 実際のブロックチェーントランザクション送信処理はありません。
+- 返信は実行者だけに見えるephemeral形式です。
+- `/on`、`/off`、`/settings`、`/stop` はDiscordサーバー管理権限、または `DISCORD_ADMIN_USER_IDS` に登録したユーザーだけが実行できます。
+- 秘密鍵、シードフレーズ、取引所APIキーは不要です。チャットやGitHubに絶対に貼り付けないでください。
+- 秘密情報を画面、Discord返信、ログ、取引履歴に表示しません。
+
+## 起動方法
+
+Node.js 18以上とnpmを使用します。
 
 ```bash
 npm install
 npm start
 ```
 
-`npm start` はExpress管理画面とDiscord Botを同時に起動します。Bot Tokenが未設定の場合、管理画面だけ起動します。
+`npm start` でExpress管理画面とDiscord Botを同時に起動します。`DISCORD_BOT_TOKEN` が未設定の場合は管理画面だけ起動します。
 
 別々に起動する場合:
 
@@ -70,30 +64,55 @@ npm run start:discord
 http://localhost:3000
 ```
 
-## Discordコマンド
+## Discord Developer Portal
 
-Discordの仕様上、コマンド名は英字にしています。
+1. Discord Developer PortalでApplicationを作成
+2. Botを追加
+3. Bot TokenをReplit Secretsなどの環境変数に保存
+4. OAuth2 URL Generatorで `bot` と `applications.commands` を選択
+5. Botをサーバーへ招待
 
-- `/status` — Bot状態、paperモード、ウォレット表示
-- `/on` — paper tradingをON
-- `/off` — paper tradingをOFF
-- `/balance` — paper残高と現金残高
-- `/price token:BTC` — 模擬価格
-- `/settings` — 買い条件、売り条件、損切り、利確、最大購入額、監視トークンを変更
-- `/stop` — paper tradingの緊急停止
+Bot TokenはGitHub、チャット、READMEへ登録しないでください。
 
-日本語名の `/残高` などが必要な場合は、Discordのコマンド名制約上、英字コマンドへのローカライズ表示を使う構成に変更してください。
+## 環境変数
+
+`.env.example` を参考に、Replit Secretsまたはホスティング環境へ設定します。
+
+```text
+PORT=3000
+APP_MODE=paper
+PAPER_TRADING=true
+DISCORD_BOT_TOKEN=DiscordのBot Token
+DISCORD_CLIENT_ID=Application ID
+DISCORD_GUILD_ID=テスト用サーバーID（任意）
+DISCORD_ADMIN_USER_IDS=あなたのDiscordユーザーID
+DASHBOARD_URL=http://127.0.0.1:3000
+```
+
+- `DISCORD_GUILD_ID` を指定すると、テストサーバーにコマンドがすぐ反映されます。
+- `DISCORD_ADMIN_USER_IDS` はカンマ区切りで複数指定できます。
+- `DASHBOARD_URL` は同じプロセスで起動する場合、通常 `http://127.0.0.1:3000` です。
 
 ## Replitでの起動
 
 1. GitHubからこのリポジトリをImport
-2. Secretsに上記の環境変数を登録
+2. Secretsに必要な環境変数を登録
 3. Run commandを `npm start` に設定
 4. Discord Developer PortalでBotをサーバーへ招待
 5. Discordで `/status` を実行
 
-`DASHBOARD_URL` は同じReplitプロセスで起動する場合、`http://127.0.0.1:3000` のままで動作します。
+## 管理画面
 
-## paper tradingの注意
+- 自動売買ON/OFF
+- Bot稼働状態
+- ウォレットアドレスとpaper残高
+- 監視対象トークンと模擬価格
+- 買い条件、売り条件、損切り、利確、最大購入額
+- 模擬取引履歴
+- 緊急停止
 
-価格は模擬値です。BotをONにすると一定間隔で模擬価格が変化し、条件に一致した場合だけJSON上の模擬取引履歴が更新されます。実資産、ウォレット、秘密鍵、ブロックチェーン送信には接続していません。
+設定と取引履歴は `data/store.json` に保存されます。このファイルはGitへコミットしない設定です。
+
+## 重要な注意
+
+価格は模擬値です。実資産、ウォレット、秘密鍵、ブロックチェーン送信には接続していません。本番運用や実売買へ変更する場合は、paper/liveの分離、認証、権限管理、監査ログ、入力検証、テスト、停止手順を別途設計してください。
