@@ -1,20 +1,28 @@
-# コントラクトアドレスによるアルトコイン追加
+# Arc RPC版のコントラクト・価格対応
 
-Dashboard の「コントラクトアドレスから追加」API、または Discord の `/add-token` を使います。
+DEX Screenerは使用しません。`/add-token` で入力したERC-20コントラクトをArc JSON-RPCの `eth_call` で読み取り、`symbol`、`name`、`decimals`を取得します。
 
-```bash
-curl -X POST http://localhost:3000/api/tokens/import \
-  -H 'content-type: application/json' \
-  -d '{"address":"0xコントラクトアドレス"}'
+```text
+/add-token address:0x... symbol:任意
 ```
 
-アドレスを DEX Screener の token API で検索し、最大流動性のペアからシンボル、名称、価格、24h取引量、DEX、ペアアドレスを取得して監視対象へ追加します。`ARC_DEX_CHAIN_ID` を設定すると、そのチェーンだけに絞り込めます。
+価格は一般のERC-20コントラクトだけから自動算出できません。価格が必要なトークンはArc上のChainlink互換Aggregator等を設定します。
 
-Discord:
-- `/add-token address:0x... symbol:任意` — コントラクトから追加
-- `/chart token:SYMBOL` — 価格・取引量・チャート履歴点
-- `/buzz token:SYMBOL` — X API v2 のバズり参考スコア
+```dotenv
+ARC_PRICE_ORACLES={"TOKEN":"0x価格オラクルアドレス"}
+```
 
-コントラクトアドレスは EVM の `0x` 形式で、公開情報の取得にのみ使います。秘密鍵は不要です。
+オラクルから `latestAnswer()` と `decimals()` を読み取り、価格チャートのデータとして保存します。オラクル未設定の場合は、トークン情報は表示されますが価格は「未設定」と表示されます。推測価格で実売買しない安全設計です。
 
-X指標には `X_BEARER_TOKEN` が必要です。スコアは公式ランキングではなく、X API v2 の直近検索結果に含まれる投稿数・いいね・リポスト等から計算した参考値です。
+## Discord
+
+- `/add-token` — Arc RPCからERC-20メタデータを読み取り監視対象に追加
+- `/chart token:TOKEN` — Dashboardが生成したSVGチャートをDiscordへ添付
+- `/price` — 現在価格と取引量
+- `/on` `/off` `/stop` `/reset-stop` — paper trading制御
+
+`/chart` はDashboardが起動している必要があります。Discord BotはDashboard URLへアクセスし、SVG画像を取得して添付します。
+
+## 安全性
+
+Arc RPCは読み取り専用です。秘密鍵、署名、送金、DEX Screener、実トランザクションは使用しません。paper tradingのみです。
