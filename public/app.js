@@ -1,145 +1,35 @@
 const API_URL = '/api';
-
 const els = {
-  botStatus: document.getElementById('botStatus'),
-  mode: document.getElementById('mode'),
-  emergencyStatus: document.getElementById('emergencyStatus'),
-  toggleBot: document.getElementById('toggleBot'),
-  emergencyStop: document.getElementById('emergencyStop'),
-  walletAddress: document.getElementById('walletAddress'),
-  walletBalance: document.getElementById('walletBalance'),
-  cashBalance: document.getElementById('cashBalance'),
-  tokenTable: document.getElementById('tokenTable'),
-  historyBody: document.getElementById('historyBody'),
-  positionsTable: document.getElementById('positionsTable'),
-  refreshPrices: document.getElementById('refreshPrices'),
-  settingsForm: document.getElementById('settingsForm'),
-  walletAddressInput: document.getElementById('walletAddressInput'),
-  buyConditionPercent: document.getElementById('buyConditionPercent'),
-  sellConditionPercent: document.getElementById('sellConditionPercent'),
-  stopLossPercent: document.getElementById('stopLossPercent'),
-  takeProfitPercent: document.getElementById('takeProfitPercent'),
-  maxPurchaseAmount: document.getElementById('maxPurchaseAmount'),
-  monitoredTokens: document.getElementById('monitoredTokens')
+  botStatus: document.getElementById('botStatus'), mode: document.getElementById('mode'), emergencyStatus: document.getElementById('emergencyStatus'), toggleBot: document.getElementById('toggleBot'), emergencyStop: document.getElementById('emergencyStop'), walletAddress: document.getElementById('walletAddress'), walletBalance: document.getElementById('walletBalance'), cashBalance: document.getElementById('cashBalance'), tokenTable: document.getElementById('tokenTable'), historyBody: document.getElementById('historyBody'), positionsTable: document.getElementById('positionsTable'), refreshPrices: document.getElementById('refreshPrices'), settingsForm: document.getElementById('settingsForm'), walletAddressInput: document.getElementById('walletAddressInput'), buyConditionPercent: document.getElementById('buyConditionPercent'), sellConditionPercent: document.getElementById('sellConditionPercent'), stopLossPercent: document.getElementById('stopLossPercent'), takeProfitPercent: document.getElementById('takeProfitPercent'), maxPurchaseAmount: document.getElementById('maxPurchaseAmount'), monitoredTokens: document.getElementById('monitoredTokens'), chart: document.getElementById('priceChart'), chartLegend: document.getElementById('chartLegend')
 };
-
-function formatMoney(value) {
-  const number = Number(value || 0);
-  return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(number);
+const chartColors = ['#55b6ff', '#8d7aff', '#35d39a', '#ffb86b', '#ff6b8a', '#e8df72'];
+let chartPrices = {};
+function formatMoney(value) { return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value || 0)); }
+function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char])); }
+function renderTokens(prices = {}) { els.tokenTable.innerHTML = Object.entries(prices).map(([token, price]) => `<div class="token-row"><span>${escapeHtml(token)}</span><strong>${formatMoney(price)}</strong></div>`).join('') || '<p>監視対象がありません</p>'; }
+function renderPositions(positions = {}) { els.positionsTable.innerHTML = Object.entries(positions).map(([token, pos]) => `<div class="position-row"><span>${escapeHtml(token)}</span><span>数量: ${Number(pos.quantity || 0).toFixed(4)}</span><span>平均価格: ${formatMoney(pos.entryPrice || 0)}</span></div>`).join('') || '<p>保有ポジションがありません</p>'; }
+function renderHistory(items = []) { els.historyBody.innerHTML = items.length ? items.map((entry) => `<tr><td>${new Date(entry.timestamp).toLocaleString('ja-JP')}</td><td>${escapeHtml(entry.token)}</td><td>${escapeHtml(entry.side)}</td><td>${formatMoney(entry.price)}</td><td>${Number(entry.amount || 0).toFixed(4)}</td><td>${escapeHtml(entry.reason || '-')}</td></tr>`).join('') : '<tr><td colspan="6">取引履歴はありません</td></tr>'; }
+function drawChart(prices = {}) {
+  chartPrices = prices;
+  const canvas = els.chart;
+  const ctx = canvas.getContext('2d');
+  const width = canvas.clientWidth || 600;
+  const height = 280;
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = width * ratio; canvas.height = height * ratio; canvas.style.height = `${height}px`; ctx.setTransform(ratio, 0, 0, ratio, 0, 0); ctx.clearRect(0, 0, width, height);
+  const entries = Object.entries(prices).filter(([, value]) => Number.isFinite(Number(value)));
+  if (!entries.length) { ctx.fillStyle = '#9fb8d7'; ctx.fillText('価格データがありません', 20, 40); return; }
+  const values = entries.map(([, value]) => Number(value)); const max = Math.max(...values) * 1.12; const min = Math.min(...values) * 0.88; const range = Math.max(max - min, 1); const left = 48; const right = width - 18; const top = 22; const bottom = height - 34; const xStep = entries.length === 1 ? 0 : (right - left) / (entries.length - 1);
+  ctx.strokeStyle = 'rgba(159,184,215,.18)'; ctx.lineWidth = 1; for (let i = 0; i < 4; i += 1) { const y = top + ((bottom - top) / 3) * i; ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(right, y); ctx.stroke(); }
+  ctx.beginPath(); entries.forEach(([, value], index) => { const x = left + xStep * index; const y = bottom - ((Number(value) - min) / range) * (bottom - top); index ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.strokeStyle = '#55b6ff'; ctx.lineWidth = 3; ctx.stroke();
+  els.chartLegend.innerHTML = entries.map(([token, value], index) => `<span><i style="background:${chartColors[index % chartColors.length]}"></i>${escapeHtml(token)}: ${formatMoney(value)}</span>`).join('');
+  entries.forEach(([token, value], index) => { const x = left + xStep * index; const y = bottom - ((Number(value) - min) / range) * (bottom - top); ctx.fillStyle = chartColors[index % chartColors.length]; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#dce9f8'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(token, x, bottom + 22); });
 }
-
-function renderTokens(prices = {}) {
-  const entries = Object.entries(prices).map(([token, price]) => `
-    <div class="token-row">
-      <span>${token}</span>
-      <strong>${formatMoney(price)}</strong>
-    </div>
-  `);
-
-  els.tokenTable.innerHTML = entries.join('') || '<p>監視対象がありません</p>';
-}
-
-function renderPositions(positions = {}) {
-  const rows = Object.entries(positions).map(([token, pos]) => `
-    <div class="position-row">
-      <span>${token}</span>
-      <span>数量: ${Number(pos.quantity || 0).toFixed(4)}</span>
-      <span>平均価格: ${formatMoney(pos.entryPrice || 0)}</span>
-    </div>
-  `);
-
-  els.positionsTable.innerHTML = rows.join('') || '<p>保有ポジションがありません</p>';
-}
-
-function renderHistory(items = []) {
-  if (!Array.isArray(items) || items.length === 0) {
-    els.historyBody.innerHTML = '<tr><td colspan="6">取引履歴はありません</td></tr>';
-    return;
-  }
-
-  els.historyBody.innerHTML = items.map((entry) => `
-    <tr>
-      <td>${new Date(entry.timestamp).toLocaleString('ja-JP')}</td>
-      <td>${entry.token}</td>
-      <td>${entry.side}</td>
-      <td>${formatMoney(entry.price)}</td>
-      <td>${Number(entry.amount || 0).toFixed(4)}</td>
-      <td>${entry.reason || '-'}</td>
-    </tr>
-  `).join('');
-}
-
-async function fetchDashboard() {
-  const response = await fetch(`${API_URL}/dashboard`);
-  const data = await response.json();
-
-  els.botStatus.textContent = data.botStatus || 'Stopped';
-  els.mode.textContent = data.paperTrading ? 'Paper' : 'Live';
-  els.emergencyStatus.textContent = data.emergencyStop ? 'ON' : 'OFF';
-  els.walletAddress.textContent = data.walletAddress || '未設定';
-  els.walletBalance.textContent = formatMoney(data.walletBalance || 0);
-  els.cashBalance.textContent = formatMoney(data.cashBalance || 0);
-
-  els.walletAddressInput.value = data.walletAddress || '';
-  els.buyConditionPercent.value = data.buyConditionPercent ?? 5;
-  els.sellConditionPercent.value = data.sellConditionPercent ?? 8;
-  els.stopLossPercent.value = data.stopLossPercent ?? 8;
-  els.takeProfitPercent.value = data.takeProfitPercent ?? 15;
-  els.maxPurchaseAmount.value = data.maxPurchaseAmount ?? 500;
-  els.monitoredTokens.value = Array.isArray(data.monitoredTokens) ? data.monitoredTokens.join(',') : 'BTC,ETH,SOL';
-
-  renderTokens(data.prices || {});
-  renderPositions(data.positions || {});
-  renderHistory(data.tradeHistory || []);
-}
-
-els.toggleBot.addEventListener('click', async () => {
-  const response = await fetch(`${API_URL}/toggle-bot`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({})
-  });
-
-  if (response.ok) {
-    await fetchDashboard();
-  }
-});
-
-els.emergencyStop.addEventListener('click', async () => {
-  const response = await fetch(`${API_URL}/emergency-stop`, { method: 'POST' });
-  if (response.ok) {
-    await fetchDashboard();
-  }
-});
-
-els.refreshPrices.addEventListener('click', async () => {
-  const response = await fetch(`${API_URL}/refresh-prices`, { method: 'POST' });
-  if (response.ok) {
-    await fetchDashboard();
-  }
-});
-
-els.settingsForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-
-  const payload = {
-    walletAddress: els.walletAddressInput.value.trim(),
-    buyConditionPercent: Number(els.buyConditionPercent.value),
-    sellConditionPercent: Number(els.sellConditionPercent.value),
-    stopLossPercent: Number(els.stopLossPercent.value),
-    takeProfitPercent: Number(els.takeProfitPercent.value),
-    maxPurchaseAmount: Number(els.maxPurchaseAmount.value),
-    monitoredTokens: els.monitoredTokens.value.split(',').map((token) => token.trim()).filter(Boolean)
-  };
-
-  await fetch(`${API_URL}/config`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  await fetchDashboard();
-});
-
-fetchDashboard();
-setInterval(fetchDashboard, 15000);
+async function fetchDashboard() { const response = await fetch(`${API_URL}/dashboard`); if (!response.ok) throw new Error('dashboard unavailable'); const data = await response.json(); els.botStatus.textContent = data.botStatus || 'Stopped'; els.mode.textContent = 'Paper'; els.emergencyStatus.textContent = data.emergencyStop ? 'ON' : 'OFF'; els.walletAddress.textContent = data.walletAddress || '未設定'; els.walletBalance.textContent = formatMoney(data.walletBalance); els.cashBalance.textContent = formatMoney(data.cashBalance); els.walletAddressInput.value = data.walletAddress || ''; els.buyConditionPercent.value = data.buyConditionPercent ?? 5; els.sellConditionPercent.value = data.sellConditionPercent ?? 8; els.stopLossPercent.value = data.stopLossPercent ?? 8; els.takeProfitPercent.value = data.takeProfitPercent ?? 15; els.maxPurchaseAmount.value = data.maxPurchaseAmount ?? 500; els.monitoredTokens.value = Array.isArray(data.monitoredTokens) ? data.monitoredTokens.join(',') : 'BTC,ETH,SOL'; renderTokens(data.prices); renderPositions(data.positions); renderHistory(data.tradeHistory || []); drawChart(data.prices || {}); }
+async function post(path, body) { return fetch(`${API_URL}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined }); }
+els.toggleBot.addEventListener('click', async () => { const response = await post('/toggle-bot', {}); if (!response.ok) alert('緊急停止中です。解除後に再開してください。'); await fetchDashboard(); });
+els.emergencyStop.addEventListener('click', async () => { if (confirm('paper tradingを緊急停止しますか？')) { await post('/emergency-stop'); await fetchDashboard(); } });
+els.refreshPrices.addEventListener('click', async () => { await post('/refresh-prices'); await fetchDashboard(); });
+els.settingsForm.addEventListener('submit', async (event) => { event.preventDefault(); await post('/config', { walletAddress: els.walletAddressInput.value.trim(), buyConditionPercent: Number(els.buyConditionPercent.value), sellConditionPercent: Number(els.sellConditionPercent.value), stopLossPercent: Number(els.stopLossPercent.value), takeProfitPercent: Number(els.takeProfitPercent.value), maxPurchaseAmount: Number(els.maxPurchaseAmount.value), monitoredTokens: els.monitoredTokens.value.split(',').map((token) => token.trim()).filter(Boolean) }); await fetchDashboard(); });
+window.addEventListener('resize', () => drawChart(chartPrices));
+fetchDashboard().catch(() => { els.botStatus.textContent = '接続エラー'; }); setInterval(() => fetchDashboard().catch(() => {}), 15000);
