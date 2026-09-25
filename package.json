@@ -1,6 +1,6 @@
 {
   "name": "arc-paper-trading-bot",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Safe paper-trading crypto automation dashboard and Discord bot for Arc workflows.",
   "main": "server.js",
   "scripts": {
@@ -10,17 +10,11 @@
     "start:discord": "node discord-bot.js",
     "dev": "node server.js"
   },
-  "keywords": [
-    "crypto",
-    "trading",
-    "paper-trading",
-    "express",
-    "discord",
-    "dashboard"
-  ],
+  "keywords": ["crypto", "trading", "paper-trading", "express", "discord", "dashboard"],
   "license": "MIT",
   "dependencies": {
     "discord.js": "^14.16.3",
-    "express": "^4.19.2"
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
   }
 }
