@@ -1,108 +1,99 @@
-# Arc Paper Trading Bot
+# Discord Bot起動
 
-Arc向け暗号資産自動売買アプリの安全な土台です。現在は **paper trading（模擬売買）専用** で、実際のブロックチェーン取引は実行しません。
+このリポジトリには、paper trading管理画面に接続するDiscord Botを含めています。
 
-## 安全上の制約
+## Discord Botの安全仕様
 
-- `APP_MODE=paper` を前提に動作します。
-- 実トランザクション送信機能は実装していません。
-- 秘密鍵をコードに直接書きません。
-- 秘密鍵を画面、APIレスポンス、ログ、取引履歴に表示しません。
-- `PRIVATE_KEY` は将来の拡張用の環境変数名としてのみ案内しています。現在のpaper tradingエンジンでは読み込み・利用しません。
-- 緊急停止を実行するとBotを停止し、以降の模擬売買を止めます。
-
-## 機能
-
-- Node.js + Express
-- スマホ対応Web管理画面
-- 自動売買のON/OFF
-- Bot稼働状態表示
-- ウォレットアドレス表示
-- paper残高・現金残高表示
-- 監視対象トークン表示
-- 模擬現在価格の更新
-- 買い条件・売り条件
-- 損切り・利確
-- 1回あたりの最大購入額
-- 模擬取引履歴
-- 緊急停止ボタン
-- 設定と履歴のJSON保存
+- Discordから操作できるのはpaper tradingの状態・設定だけです。
+- 実際のブロックチェーントランザクション送信処理はありません。
+- `/status`、`/balance`、`/price` は全ユーザーが利用できます。
+- `/on`、`/off`、`/settings`、`/stop` はDiscordサーバー管理権限、または `DISCORD_ADMIN_USER_IDS` に登録されたユーザーだけが利用できます。
+- Discordの返信はephemeral（実行者だけに表示）です。
+- 秘密鍵はBotへ渡す必要がなく、画面・返信・ログにも出しません。
 
 ## 必要環境
 
-- Node.js 18以上を推奨
+- Node.js 18以上（`fetch`を使用します）
 - npm
+- Discord Developer Portalで作成したBot
 
-## 起動方法
+## 起動手順
+
+### 1. Discord Applicationを作成
+
+1. Discord Developer PortalでNew Applicationを作成
+2. BotページでBotを追加
+3. Bot Tokenを再生成して、Replit Secretsなどの環境変数に保存
+4. OAuth2 URL Generatorで `bot` と `applications.commands` を選択
+5. Bot権限は最低限 `Send Messages` を付与してサーバーへ招待
+
+Bot TokenはGitHub、チャット、READMEへ貼り付けないでください。
+
+### 2. 環境変数を設定
+
+`.env.example` を参考に、Replit Secretsまたはホスティング環境の環境変数へ登録します。
+
+```text
+PORT=3000
+APP_MODE=paper
+PAPER_TRADING=true
+DISCORD_BOT_TOKEN=DiscordのBot Token
+DISCORD_CLIENT_ID=Application ID
+DISCORD_GUILD_ID=テスト用サーバーID（任意。指定するとコマンド反映が速い）
+DISCORD_ADMIN_USER_IDS=あなたのDiscordユーザーID
+DASHBOARD_URL=http://127.0.0.1:3000
+```
+
+`DISCORD_ADMIN_USER_IDS` はカンマ区切りで複数指定できます。空欄の場合、変更系コマンドはDiscordサーバーのManage Server権限が必要です。
+
+秘密鍵、シードフレーズ、取引所APIキーは設定しないでください。現在のアプリは実売買をしないため不要です。
+
+### 3. 起動
 
 ```bash
 npm install
 npm start
 ```
 
-起動後、ブラウザまたはスマートフォンで以下を開きます。
+`npm start` はExpress管理画面とDiscord Botを同時に起動します。Bot Tokenが未設定の場合、管理画面だけ起動します。
+
+別々に起動する場合:
+
+```bash
+npm run start:dashboard
+npm run start:discord
+```
+
+管理画面:
 
 ```text
 http://localhost:3000
 ```
 
-Replitでは、Run設定の起動コマンドを `npm start` にしてください。公開URLはReplitが表示するWebviewまたはPublic URLから開けます。
+## Discordコマンド
 
-## 環境変数
+Discordの仕様上、コマンド名は英字にしています。
 
-`.env.example` を参考に、Replit Secretsまたは実行環境の環境変数へ設定してください。
+- `/status` — Bot状態、paperモード、ウォレット表示
+- `/on` — paper tradingをON
+- `/off` — paper tradingをOFF
+- `/balance` — paper残高と現金残高
+- `/price token:BTC` — 模擬価格
+- `/settings` — 買い条件、売り条件、損切り、利確、最大購入額、監視トークンを変更
+- `/stop` — paper tradingの緊急停止
 
-| 変数 | 必須 | 説明 |
-| --- | --- | --- |
-| `PORT` | 任意 | Expressのポート。既定値は `3000` |
-| `NODE_ENV` | 任意 | 実行環境。既定値は `development` |
-| `APP_MODE` | 任意 | `paper` を設定。実売買モードはありません |
-| `PAPER_TRADING` | 任意 | `true` を設定 |
-| `AUTO_TRADING` | 任意 | 初期自動売買状態。既定値は `false` |
-| `WALLET_ADDRESS` | 任意 | 表示用ウォレットアドレス。秘密情報ではありません |
-| `ARC_RPC_URL` | 任意 | 将来の参照用RPC URL。現在は送信に使用しません |
-| `PRIVATE_KEY` | 任意 | **チャットやGitへ絶対に登録しない秘密情報**。現在のpaper tradingでは使用しません |
-| `BOT_STATUS` | 任意 | 初期状態の参考値 |
-| `MONITORED_TOKENS` | 任意 | 監視対象の初期値。例: `BTC,ETH,SOL` |
-| `BUY_CONDITION_PERCENT` | 任意 | 買い条件の初期値 |
-| `SELL_CONDITION_PERCENT` | 任意 | 売り条件の初期値 |
-| `STOP_LOSS_PERCENT` | 任意 | 損切り率の初期値 |
-| `TAKE_PROFIT_PERCENT` | 任意 | 利確率の初期値 |
-| `MAX_PURCHASE_AMOUNT` | 任意 | 最大購入額の初期値 |
+日本語名の `/残高` などが必要な場合は、Discordのコマンド名制約上、英字コマンドへのローカライズ表示を使う構成に変更してください。
 
-`.env` ファイルを使う場合も、秘密情報をGitへコミットしないでください。`.gitignore` で `.env` は除外されています。
+## Replitでの起動
 
-## Replit Secretsの例
+1. GitHubからこのリポジトリをImport
+2. Secretsに上記の環境変数を登録
+3. Run commandを `npm start` に設定
+4. Discord Developer PortalでBotをサーバーへ招待
+5. Discordで `/status` を実行
 
-値は自分のReplit環境で登録してください。このREADMEやGitHubへ実際の値を書き込まないでください。
+`DASHBOARD_URL` は同じReplitプロセスで起動する場合、`http://127.0.0.1:3000` のままで動作します。
 
-```text
-PORT=3000
-APP_MODE=paper
-PAPER_TRADING=true
-WALLET_ADDRESS=表示したいウォレットアドレス
-ARC_RPC_URL=使用する場合のRPC URL
-PRIVATE_KEY=秘密鍵（コードやチャットに貼り付けない）
-```
+## paper tradingの注意
 
-## データ保存
-
-初回起動時に `data/store.json` が作成され、設定、模擬残高、ポジション、取引履歴が保存されます。`data/` はGitへコミットしない設定です。
-
-本番運��や複数ユーザー対応へ進む場合は、認証とSQLite/PostgreSQLなどのデータベースを追加してください。
-
-## API
-
-- `GET /api/health` — 稼働確認
-- `GET /api/dashboard` — ダッシュボード情報
-- `GET /api/config` — 安全な設定情報
-- `POST /api/config` — 設定保存
-- `POST /api/toggle-bot` — paper botのON/OFF
-- `POST /api/emergency-stop` — 緊急停止
-- `POST /api/refresh-prices` — 模擬価格更新とpaper engine実行
-- `GET /api/prices` — 模擬価格
-- `GET /api/trades` — 模擬取引履歴
-
-## 重要な注意
-
-このプロジェクトは学習・検証用のpaper trading土台です。価格データは模擬的に変動します。実資産を扱う前に、認証、権限管理、入力検証、監査ログ、レート制限、秘密管理、テスト、停止手順を十分に整備してください。
+価格は模擬値です。BotをONにすると一定間隔で模擬価格が変化し、条件に一致した場合だけJSON上の模擬取引履歴が更新されます。実資産、ウォレット、秘密鍵、ブロックチェーン送信には接続していません。
