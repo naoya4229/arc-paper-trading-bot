@@ -1,223 +1,108 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: linear-gradient(135deg, #071325, #101f38 60%, #091823);
-  color: #e8edf7;
-}
+# Arc Paper Trading Bot
 
-* {
-  box-sizing: border-box;
-}
+Arc向け暗号資産自動売買アプリの安全な土台です。現在は **paper trading（模擬売買）専用** で、実際のブロックチェーン取引は実行しません。
 
-.page-shell {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 16px 40px;
-}
+## 安全上の制約
 
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 20px;
-}
+- `APP_MODE=paper` を前提に動作します。
+- 実トランザクション送信機能は実装していません。
+- 秘密鍵をコードに直接書きません。
+- 秘密鍵を画面、APIレスポンス、ログ、取引履歴に表示しません。
+- `PRIVATE_KEY` は将来の拡張用の環境変数名としてのみ案内しています。現在のpaper tradingエンジンでは読み込み・利用しません。
+- 緊急停止を実行するとBotを停止し、以降の模擬売買を止めます。
 
-.eyebrow {
-  margin: 0;
-  letter-spacing: 0.08em;
-  font-size: 0.72rem;
-  color: #7cc0ff;
-  text-transform: uppercase;
-}
+## 機能
 
-.topbar h1 {
-  margin: 4px 0 0;
-  font-size: clamp(1.8rem, 4vw, 2.5rem);
-}
+- Node.js + Express
+- スマホ対応Web管理画面
+- 自動売買のON/OFF
+- Bot稼働状態表示
+- ウォレットアドレス表示
+- paper残高・現金残高表示
+- 監視対象トークン表示
+- 模擬現在価格の更新
+- 買い条件・売り条件
+- 損切り・利確
+- 1回あたりの最大購入額
+- 模擬取引履歴
+- 緊急停止ボタン
+- 設定と履歴のJSON保存
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
-}
+## 必要環境
 
-.card {
-  background: rgba(17, 25, 38, 0.84);
-  border: 1px solid rgba(108, 152, 210, 0.22);
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
-}
+- Node.js 18以上を推奨
+- npm
 
-.status-card,
-.wallet-card,
-.config-card,
-.market-card,
-.positions-card,
-.history-card {
-  min-height: 200px;
-}
+## 起動方法
 
-.full-span {
-  grid-column: 1 / -1;
-}
+```bash
+npm install
+npm start
+```
 
-h2 {
-  margin: 0 0 14px;
-  font-size: 1.15rem;
-}
+起動後、ブラウザまたはスマートフォンで以下を開きます。
 
-.status-row,
-.info-block,
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+```text
+http://localhost:3000
+```
 
-.label {
-  font-size: 0.78rem;
-  color: #9fb8d7;
-}
+Replitでは、Run設定の起動コマンドを `npm start` にしてください。公開URLはReplitが表示するWebviewまたはPublic URLから開けます。
 
-button,
-input {
-  border-radius: 10px;
-  border: 1px solid rgba(146, 180, 232, 0.3);
-  font: inherit;
-}
+## 環境変数
 
-button {
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: opacity 0.2s ease;
-}
+`.env.example` を参考に、Replit Secretsまたは実行環境の環境変数へ設定してください。
 
-button:hover {
-  opacity: 0.92;
-}
+| 変数 | 必須 | 説明 |
+| --- | --- | --- |
+| `PORT` | 任意 | Expressのポート。既定値は `3000` |
+| `NODE_ENV` | 任意 | 実行環境。既定値は `development` |
+| `APP_MODE` | 任意 | `paper` を設定。実売買モードはありません |
+| `PAPER_TRADING` | 任意 | `true` を設定 |
+| `AUTO_TRADING` | 任意 | 初期自動売買状態。既定値は `false` |
+| `WALLET_ADDRESS` | 任意 | 表示用ウォレットアドレス。秘密情報ではありません |
+| `ARC_RPC_URL` | 任意 | 将来の参照用RPC URL。現在は送信に使用しません |
+| `PRIVATE_KEY` | 任意 | **チャットやGitへ絶対に登録しない秘密情報**。現在のpaper tradingでは使用しません |
+| `BOT_STATUS` | 任意 | 初期状態の参考値 |
+| `MONITORED_TOKENS` | 任意 | 監視対象の初期値。例: `BTC,ETH,SOL` |
+| `BUY_CONDITION_PERCENT` | 任意 | 買い条件の初期値 |
+| `SELL_CONDITION_PERCENT` | 任意 | 売り条件の初期値 |
+| `STOP_LOSS_PERCENT` | 任意 | 損切り率の初期値 |
+| `TAKE_PROFIT_PERCENT` | 任意 | 利確率の初期値 |
+| `MAX_PURCHASE_AMOUNT` | 任意 | 最大購入額の初期値 |
 
-.primary {
-  background: #3aa0ff;
-  color: #081c2d;
-  font-weight: 700;
-}
+`.env` ファイルを使う場合も、秘密情報をGitへコミットしないでください。`.gitignore` で `.env` は除外されています。
 
-.secondary {
-  background: rgba(122, 157, 224, 0.15);
-  color: #eaf4ff;
-}
+## Replit Secretsの例
 
-.danger {
-  background: rgba(220, 78, 78, 0.16);
-  color: #ffb3b3;
-  border-color: rgba(255, 120, 120, 0.35);
-}
+値は自分のReplit環境で登録してください。このREADMEやGitHubへ実際の値を書き込まないでください。
 
-.wide {
-  width: 100%;
-  margin-top: 12px;
-}
+```text
+PORT=3000
+APP_MODE=paper
+PAPER_TRADING=true
+WALLET_ADDRESS=表示したいウォレットアドレス
+ARC_RPC_URL=使用する場合のRPC URL
+PRIVATE_KEY=秘密鍵（コードやチャットに貼り付けない）
+```
 
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 18px;
-}
+## データ保存
 
-.kpis > div {
-  background: rgba(98, 128, 168, 0.08);
-  border-radius: 12px;
-  padding: 12px 10px;
-}
+初回起動時に `data/store.json` が作成され、設定、模擬残高、ポジション、取引履歴が保存されます。`data/` はGitへコミットしない設定です。
 
-.kpi-label {
-  display: block;
-  font-size: 0.75rem;
-  color: #9eb8d7;
-  margin-bottom: 8px;
-}
+本番運��や複数ユーザー対応へ進む場合は、認証とSQLite/PostgreSQLなどのデータベースを追加してください。
 
-.info-block {
-  flex-direction: column;
-  align-items: flex-start;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: rgba(110, 139, 179, 0.08);
-  border-radius: 12px;
-}
+## API
 
-.input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 10px;
-}
+- `GET /api/health` — 稼働確認
+- `GET /api/dashboard` — ダッシュボード情報
+- `GET /api/config` — 安全な設定情報
+- `POST /api/config` — 設定保存
+- `POST /api/toggle-bot` — paper botのON/OFF
+- `POST /api/emergency-stop` — 緊急停止
+- `POST /api/refresh-prices` — 模擬価格更新とpaper engine実行
+- `GET /api/prices` — 模擬価格
+- `GET /api/trades` — 模擬取引履歴
 
-.input-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
+## 重要な注意
 
-input {
-  width: 100%;
-  padding: 10px 12px;
-  background: rgba(18, 30, 43, 0.9);
-  color: #edf5ff;
-}
-
-.token-table,
-.position-table {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.token-row,
-.position-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  background: rgba(126, 146, 183, 0.07);
-  border-radius: 10px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 10px;
-}
-
-th,
-td {
-  text-align: left;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(150, 174, 205, 0.18);
-  font-size: 0.9rem;
-}
-
-@media (max-width: 640px) {
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .input-grid,
-  .kpis {
-    grid-template-columns: 1fr;
-  }
-
-  .token-row,
-  .position-row,
-  .status-row,
-  .toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
+このプロジェクトは学習・検証用のpaper trading土台です。価格データは模擬的に変動します。実資産を扱う前に、認証、権限管理、入力検証、監査ログ、レート制限、秘密管理、テスト、停止手順を十分に整備してください。
