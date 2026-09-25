@@ -1,19 +1,55 @@
 <!doctype html>
-<html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arc Paper Trading Dashboard</title>
-<style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#0b1020;color:#e5e7eb}body{max-width:1180px;margin:auto;padding:24px}h1{margin:0 0 8px}.muted{color:#94a3b8}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}.card{background:#151d33;border:1px solid #273454;border-radius:14px;padding:16px;margin:16px 0;box-shadow:0 8px 30px #0003}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}button,select{background:#263657;color:#fff;border:1px solid #40557f;border-radius:8px;padding:9px 12px;cursor:pointer}button:hover{background:#345084}.danger{background:#8f2537}.ok{color:#5ee6a8}.warn{color:#ffd166}.metric{font-size:1.5rem;font-weight:700}.token{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #283653}.token:last-child{border:0}.bar{height:10px;background:#283653;border-radius:8px;overflow:hidden}.bar>i{display:block;height:100%;background:linear-gradient(90deg,#38bdf8,#a78bfa)}canvas{width:100%;height:300px;background:#0f172a;border-radius:10px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #283653;font-size:.9rem}@media(max-width:650px){body{padding:12px}canvas{height:220px}}
-</style></head><body>
-<h1>Arc Paper Trading Dashboard</h1><p class="muted">paper trading専用 / Arcウォレットは読み取り専用 / 価格・取引量は模擬データ</p>
-<div class="toolbar"><button id="toggle"></button><button id="refresh">価格・チャート更新</button><button class="danger" id="stop">緊急停止</button><span id="status" class="muted"></span></div>
-<div class="grid"><section class="card"><h2>残高</h2><div id="balance" class="metric">-</div><p id="arc" class="muted">Arcウォレット確認中...</p></section><section class="card"><h2>X バズり指標</h2><div id="buzz">取得中...</div><p class="muted">X API v2の直近投稿・反応から算出（0〜100）。</p></section></div>
-<section class="card"><div class="toolbar"><h2 style="margin-right:auto">価格チャート</h2><select id="token"></select></div><canvas id="chart" width="1100" height="300"></canvas><div id="market" class="grid"></div></section>
-<section class="card"><h2>売買条件・リスク</h2><div id="conditions" class="grid"></div></section>
-<section class="card"><h2>取引履歴</h2><div id="history"></div></section>
-<script>
-const $=id=>document.getElementById(id);let data={};
-async function get(url,opt){const r=await fetch(url,opt);const j=await r.json();if(!r.ok)throw Error(j.error||r.status);return j}
-function draw(){const token=$('token').value,h=(data.priceHistory||{})[token]||[],c=$('chart'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);if(h.length<2){x.fillStyle='#94a3b8';x.fillText('更新ボタンでチャートデータを生成します',20,40);return}const prices=h.map(v=>v.price),min=Math.min(...prices),max=Math.max(...prices),range=max-min||1;x.strokeStyle='#60a5fa';x.lineWidth=3;x.beginPath();prices.forEach((p,i)=>{const px=i*(c.width-40)/(prices.length-1)+20,py=c.height-30-(p-min)/range*(c.height-60);i?x.lineTo(px,py):x.moveTo(px,py)});x.stroke();x.fillStyle='#94a3b8';x.fillText(`最小 ${min} / 最大 ${max}`,20,20);}
-function render(){const tokens=data.monitoredTokens||Object.keys(data.prices||{});$('token').innerHTML=tokens.map(t=>`<option>${t}</option>`).join('');$('token').onchange=draw;$('toggle').textContent=data.botEnabled?'自動売買 OFF':'自動売買 ON';$('status').textContent=`状態: ${data.botStatus} / 緊急停止: ${data.emergencyStop?'有効':'無効'}`;$('balance').textContent=`paper ${Number(data.cashBalance||0).toFixed(2)}`;$('conditions').innerHTML=[['買い条件',data.buyThreshold+'%'],['売り条件',data.sellThreshold+'%'],['損切り',data.stopLossPct+'%'],['利確',data.takeProfitPct+'%']].map(x=>`<div><span class="muted">${x[0]}</span><div class="metric">${x[1]}</div></div>`).join('');$('market').innerHTML=tokens.map(t=>`<div class="token"><b>${t}</b><span>${Number(data.prices?.[t]||0).toFixed(6)} / volume ${Number(data.volumes?.[t]||0).toLocaleString()}</span></div>`).join('');$('history').innerHTML=(data.tradeHistory||[]).slice(0,10).map(t=>`<div class="token"><span>${t.action} ${t.token}</span><span>${Number(t.price).toFixed(6)} / ${new Date(t.timestamp).toLocaleString('ja-JP')}</span></div>`).join('')||'<span class="muted">履歴なし</span>';draw()}
-async function load(){data=await get('/api/dashboard');const arc=await get('/api/arc/status').catch(e=>({error:e.message}));$('arc').textContent=arc.error?`Arc: 未接続 (${arc.error})`:`Arc ${arc.chainId} / ${arc.nativeSymbol}: ${arc.balanceNative??'-'} / ${arc.walletAddress||'アドレス未設定'}`;render();const social=await get('/api/social').catch(e=>({error:e.message}));$('buzz').innerHTML=social.error?`<span class="warn">取得失敗: ${social.error}</span>`:Object.values(social.results||{}).map(v=>`<div class="token"><b>${v.token}</b><span>${v.score===null?v.message:`スコア ${v.score}/100 (${v.posts} posts)`}</span></div>`).join('')||'データなし'}
-$('refresh').onclick=async()=>{await get('/api/refresh-prices',{method:'POST'});load()};$('toggle').onclick=async()=>{await get('/api/toggle-bot',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({enabled:!data.botEnabled})});load()};$('stop').onclick=async()=>{if(confirm('緊急停止しますか？')){await get('/api/emergency-stop',{method:'POST'});load()}};load();setInterval(load,30000);
-</script></body></html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arc Paper Trading Dashboard</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, -apple-system, sans-serif; background: #0b1020; color: #e5e7eb; }
+    body { max-width: 1180px; margin: auto; padding: 24px; }
+    h1 { margin: 0 0 8px; } .muted { color: #94a3b8; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .card { background: #151d33; border: 1px solid #273454; border-radius: 14px; padding: 16px; margin: 16px 0; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    button, select { background: #263657; color: #fff; border: 1px solid #40557f; border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+    button:hover { background: #345084; } .danger { background: #8f2537; }
+    .metric { font-size: 1.5rem; font-weight: 700; } .warn { color: #ffd166; }
+    .token { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #283653; }
+    .token:last-child { border: 0; } canvas { width: 100%; height: 300px; background: #0f172a; border-radius: 10px; }
+    @media (max-width: 650px) { body { padding: 12px; } canvas { height: 220px; } }
+  </style>
+</head>
+<body>
+  <h1>Arc Paper Trading Dashboard</h1>
+  <p class="muted">paper trading専用 / Arcウォレットは読み取り専用 / 実取引は行いません</p>
+  <div class="toolbar"><button id="toggle"></button><button id="refresh">価格とチャートを更新</button><button class="danger" id="stop">緊急停止</button><span id="status" class="muted"></span></div>
+  <div class="grid">
+    <section class="card"><h2>残高</h2><div id="balance" class="metric">-</div><p id="arc" class="muted">Arcウォレットを確認中...</p></section>
+    <section class="card"><h2>監視対象</h2><div id="market">読み込み中...</div></section>
+  </div>
+  <section class="card"><div class="toolbar"><h2 style="margin-right:auto">価格チャート</h2><select id="token"></select></div><canvas id="chart" width="1100" height="300"></canvas></section>
+  <section class="card"><h2>売買条件とリスク管理</h2><div id="conditions"></div></section>
+  <section class="card"><h2>取引履歴</h2><div id="history"></div></section>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let data = {};
+    async function getJson(url, options) { const response = await fetch(url, options); const json = await response.json(); if (!response.ok) throw new Error(json.error || response.status); return json; }
+    function drawChart() {
+      const token = $('token').value; const history = (data.priceHistory || {})[token] || []; const canvas = $('chart'); const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (history.length < 2) { ctx.fillStyle = '#94a3b8'; ctx.fillText('更新ボタンを押すとチャートデータが増えます。', 20, 40); return; }
+      const prices = history.map((item) => Number(item.price)); const min = Math.min(...prices); const max = Math.max(...prices); const range = max - min || 1;
+      ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 3; ctx.beginPath();
+      prices.forEach((price, index) => { const x = 20 + index * (canvas.width - 40) / (prices.length - 1); const y = canvas.height - 30 - (price - min) / range * (canvas.height - 60); index ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+      ctx.fillStyle = '#94a3b8'; ctx.fillText(`最小 ${min} / 最大 ${max}`, 20, 20);
+    }
+    function render() {
+      const tokens = data.monitoredTokens || Object.keys(data.prices || {}); $('token').innerHTML = tokens.map((token) => `<option value="${token}">${token}</option>`).join(''); $('token').onchange = drawChart;
+      $('toggle').textContent = data.botEnabled ? '自動売買をOFF' : '自動売買をON'; $('status').textContent = `状態: ${data.botStatus} / 緊急停止: ${data.emergencyStop ? '有効' : '無効'}`; $('balance').textContent = `paper ${Number(data.cashBalance || 0).toFixed(2)}`;
+      $('market').innerHTML = tokens.map((token) => `<div class="token"><b>${token}</b><span>${Number(data.prices?.[token] || 0).toFixed(8)} / 取引量 ${Number(data.volumes?.[token] || 0).toLocaleString('ja-JP')}</span></div>`).join(''); $('conditions').textContent = `paper trading / 監視対象: ${tokens.join(', ')}`;
+      $('history').innerHTML = (data.tradeHistory || []).slice(0, 10).map((item) => `<div class="token"><span>${item.action} ${item.token}</span><span>${Number(item.price).toFixed(8)} / ${new Date(item.timestamp).toLocaleString('ja-JP')}</span></div>`).join('') || '<span class="muted">履歴はありません。</span>'; drawChart();
+    }
+    async function load() { data = await getJson('/api/dashboard'); const arc = await getJson('/api/arc/status').catch((error) => ({ error: error.message })); $('arc').textContent = arc.error ? `Arc: 未接続（${arc.error}）` : `Arc Chain ID ${arc.chainId} / ${arc.nativeSymbol}: ${arc.balanceNative ?? '-'} / ${arc.walletAddress || 'アドレス未設定'}`; render(); }
+    $('refresh').onclick = async () => { await getJson('/api/refresh-prices', { method: 'POST' }); await load(); }; $('toggle').onclick = async () => { await getJson('/api/toggle-bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ enabled: !data.botEnabled }) }); await load(); }; $('stop').onclick = async () => { if (confirm('緊急停止しますか？')) { await getJson('/api/emergency-stop', { method: 'POST' }); await load(); } }; load(); setInterval(load, 30000);
+  </script>
+</body>
+</html>
