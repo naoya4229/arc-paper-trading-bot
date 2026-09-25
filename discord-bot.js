@@ -1,205 +1,32 @@
 require('dotenv').config();
-
-const {
-  Client,
-  GatewayIntentBits,
-  REST,
-  Routes,
-  SlashCommandBuilder,
-  PermissionFlagsBits,
-} = require('discord.js');
-
-const TOKEN = process.env.DISCORD_BOT_TOKEN;
-const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
-const GUILD_ID = process.env.DISCORD_GUILD_ID;
-const DASHBOARD_URL = process.env.DASHBOARD_URL || 'http://127.0.0.1:3000';
-const ADMIN_IDS = new Set(
-  String(process.env.DISCORD_ADMIN_USER_IDS || '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean),
-);
-
-if (!TOKEN) {
-  console.log('Discord bot disabled: DISCORD_BOT_TOKEN is not configured.');
-  process.exit(0);
-}
-if (!CLIENT_ID) {
-  console.error('DISCORD_CLIENT_ID is required when DISCORD_BOT_TOKEN is configured.');
-  process.exit(1);
-}
-
-const commands = [
-  new SlashCommandBuilder().setName('status').setDescription('自動売買の状態を表示します'),
-  new SlashCommandBuilder().setName('on').setDescription('paper tradingの自動売買をONにします'),
-  new SlashCommandBuilder().setName('off').setDescription('paper tradingの自動売買をOFFにします'),
-  new SlashCommandBuilder().setName('balance').setDescription('paper残高を表示します'),
-  new SlashCommandBuilder()
-    .setName('price')
-    .setDescription('監視対象トークンの模擬価格を表示します')
-    .addStringOption((option) => option.setName('token').setDescription('トークン名（省略可）').setRequired(false)),
-  new SlashCommandBuilder().setName('conditions').setDescription('買い・売り条件を表示します'),
-  new SlashCommandBuilder().setName('risk').setDescription('損切り・利確設定を表示します'),
-  new SlashCommandBuilder()
-    .setName('history')
-    .setDescription('paper取引履歴を表示します')
-    .addIntegerOption((option) => option.setName('count').setDescription('表示件数（1〜10）').setMinValue(1).setMaxValue(10).setRequired(false)),
-  new SlashCommandBuilder()
-    .setName('settings')
-    .setDescription('paper tradingの設定を変更します')
-    .addStringOption((option) => option
-      .setName('key')
-      .setDescription('変更する設定')
-      .setRequired(true)
-      .addChoices(
-        { name: '監視トークン', value: 'monitoredTokens' },
-        { name: '買い条件', value: 'buyThreshold' },
-        { name: '売り条件', value: 'sellThreshold' },
-        { name: '損切り率', value: 'stopLossPct' },
-        { name: '利確率', value: 'takeProfitPct' },
-      ))
-    .addStringOption((option) => option.setName('value').setDescription('設定値').setRequired(true)),
-  new SlashCommandBuilder().setName('stop').setDescription('自動売買を緊急停止します'),
-  new SlashCommandBuilder().setName('reset-stop').setDescription('緊急停止を解除します（自動売買はOFFのまま）'),
-].map((command) => command.toJSON());
-
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
-
-async function api(endpoint, options = {}) {
-  const response = await fetch(`${DASHBOARD_URL}${endpoint}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Dashboard API returned ${response.status}`);
-  return data;
-}
-
-function privateReply(content) {
-  return { content: String(content).slice(0, 1900), ephemeral: true };
-}
-
-function canManage(interaction) {
-  return ADMIN_IDS.has(interaction.user.id)
-    || Boolean(interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild));
-}
-
-function pct(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? `${number.toFixed(2)}%` : '未設定';
-}
-
-function safeAddress(address) {
-  if (!address) return '未設定';
-  return address.length > 18 ? `${address.slice(0, 8)}...${address.slice(-6)}` : address;
-}
-
-function formatConditions(data) {
-  const tokens = (data.monitoredTokens || []).join(', ') || '未設定';
-  return [
-    '📋 **売買条件（paper trading）**',
-    `監視対象: ${tokens}`,
-    `買い条件: ${data.buyThreshold ?? '未設定'}`,
-    `売り条件: ${data.sellThreshold ?? '未設定'}`,
-    `損切り: ${pct(data.stopLossPct)}`,
-    `利確: ${pct(data.takeProfitPct)}`,
-    '※ 実トランザクションは送信されません。',
-  ].join('\n');
-}
-
-client.once('ready', async (readyClient) => {
-  const rest = new REST({ version: '10' }).setToken(TOKEN);
-  const route = GUILD_ID
-    ? Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID)
-    : Routes.applicationCommands(CLIENT_ID);
-  await rest.put(route, { body: commands });
-  console.log(`Discord bot logged in as ${readyClient.user.tag}`);
-});
-
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  try {
-    const name = interaction.commandName;
-    if (name === 'status') {
-      const data = await api('/api/dashboard');
-      return interaction.reply(privateReply([
-        `状態: ${data.botStatus || 'Stopped'}`,
-        `自動売買: ${data.botEnabled ? 'ON' : 'OFF'}`,
-        `モード: ${data.paperTrading ? 'paper trading' : '停止'}`,
-        `緊急停止: ${data.emergencyStop ? '有効' : '無効'}`,
-      ].join('\n')));
-    }
-
-    if (name === 'balance') {
-      const data = await api('/api/dashboard');
-      return interaction.reply(privateReply([
-        `💰 paper残高: ${Number(data.walletBalance || 0).toFixed(2)}`,
-        `現金残高: ${Number(data.cashBalance || 0).toFixed(2)}`,
-        `ウォレット: ${safeAddress(data.walletAddress)}`,
-      ].join('\n')));
-    }
-
-    if (name === 'price') {
-      const data = await api('/api/prices');
-      const requested = interaction.options.getString('token')?.trim().toUpperCase();
-      const values = requested ? { [requested]: data.prices?.[requested] } : data.prices;
-      const lines = Object.entries(values || {}).map(([token, price]) => `${token}: ${Number(price).toFixed(6)}`);
-      return interaction.reply(privateReply(`📈 **価格**\n${lines.length ? lines.join('\n') : '価格データなし'}`));
-    }
-
-    if (name === 'conditions' || name === 'risk') {
-      const data = await api('/api/config');
-      return interaction.reply(privateReply(name === 'risk'
-        ? `🛡️ **リスク設定**\n損切り: ${pct(data.stopLossPct)}\n利確: ${pct(data.takeProfitPct)}\n※ paper trading専用です。`
-        : formatConditions(data)));
-    }
-
-    if (name === 'history') {
-      const data = await api('/api/trades');
-      const count = interaction.options.getInteger('count') || 5;
-      const history = (data.tradeHistory || []).slice(0, count);
-      const lines = history.map((trade) => {
-        const time = trade.timestamp ? new Date(trade.timestamp).toLocaleString('ja-JP') : '';
-        return `${trade.side || trade.action || 'TRADE'} ${trade.token || ''} @ ${trade.price ?? '-'} ${time}`.trim();
-      });
-      return interaction.reply(privateReply(`🧾 **取引履歴**\n${lines.length ? lines.join('\n') : '履歴はありません'}`));
-    }
-
-    if (!canManage(interaction)) {
-      return interaction.reply(privateReply('この操作にはDiscordサーバー管理権限、またはDISCORD_ADMIN_USER_IDSへの登録が必要です。'));
-    }
-
-    if (name === 'on' || name === 'off') {
-      const data = await api('/api/toggle-bot', { method: 'POST', body: JSON.stringify({ enabled: name === 'on' }) });
-      return interaction.reply(privateReply(`自動売買を${data.botEnabled ? 'ON' : 'OFF'}にしました。状態: ${data.botStatus}`));
-    }
-
-    if (name === 'stop') {
-      await api('/api/emergency-stop', { method: 'POST' });
-      return interaction.reply(privateReply('🚨 緊急停止しました。解除には /reset-stop が必要です。'));
-    }
-
-    if (name === 'reset-stop') {
-      await api('/api/emergency-reset', { method: 'POST' });
-      return interaction.reply(privateReply('緊急停止を解除しました。安全のため自動売買はOFFのままです。'));
-    }
-
-    if (name === 'settings') {
-      const key = interaction.options.getString('key', true);
-      const value = interaction.options.getString('value', true);
-      const payload = key === 'monitoredTokens'
-        ? { monitoredTokens: value.split(',').map((token) => token.trim().toUpperCase()).filter(Boolean) }
-        : { [key]: value };
-      await api('/api/config', { method: 'POST', body: JSON.stringify(payload) });
-      return interaction.reply(privateReply(`設定を更新しました: ${key} = ${value}`));
-    }
-  } catch (error) {
-    console.error(`Discord command failed: ${error.message}`);
-    const reply = privateReply('処理に失敗しました。Dashboardが起動中か、設定値を確認してください。');
-    if (interaction.replied || interaction.deferred) return interaction.followUp(reply);
-    return interaction.reply(reply);
-  }
-});
-
-client.login(TOKEN);
+const {Client,GatewayIntentBits,REST,Routes,SlashCommandBuilder,PermissionFlagsBits}=require('discord.js');
+const TOKEN=process.env.DISCORD_BOT_TOKEN,CLIENT_ID=process.env.DISCORD_CLIENT_ID,GUILD_ID=process.env.DISCORD_GUILD_ID,DASHBOARD_URL=process.env.DASHBOARD_URL||'http://127.0.0.1:3000';
+const ADMIN_IDS=new Set(String(process.env.DISCORD_ADMIN_USER_IDS||'').split(',').map(x=>x.trim()).filter(Boolean));
+if(!TOKEN){console.log('Discord bot disabled: DISCORD_BOT_TOKEN is not configured.');process.exit(0);}if(!CLIENT_ID){console.error('DISCORD_CLIENT_ID is required.');process.exit(1);}
+const commands=[
+ new SlashCommandBuilder().setName('status').setDescription('自動売買の状態'),new SlashCommandBuilder().setName('on').setDescription('自動売買ON'),new SlashCommandBuilder().setName('off').setDescription('自動売買OFF'),new SlashCommandBuilder().setName('balance').setDescription('残高'),
+ new SlashCommandBuilder().setName('price').setDescription('価格').addStringOption(o=>o.setName('token').setDescription('シンボル').setRequired(false)),
+ new SlashCommandBuilder().setName('chart').setDescription('価格チャート情報').addStringOption(o=>o.setName('token').setDescription('シンボルまたはコントラクトアドレス').setRequired(true)),
+ new SlashCommandBuilder().setName('buzz').setDescription('Xバズり指標').addStringOption(o=>o.setName('token').setDescription('シンボル').setRequired(true)),
+ new SlashCommandBuilder().setName('add-token').setDescription('コントラクトアドレスからトークン追加').addStringOption(o=>o.setName('address').setDescription('0x...').setRequired(true)).addStringOption(o=>o.setName('symbol').setDescription('表示シンボル（任意）').setRequired(false)),
+ new SlashCommandBuilder().setName('conditions').setDescription('売買条件'),new SlashCommandBuilder().setName('risk').setDescription('損切り・利確'),new SlashCommandBuilder().setName('history').setDescription('取引履歴').addIntegerOption(o=>o.setName('count').setDescription('件数').setMinValue(1).setMaxValue(10).setRequired(false)),
+ new SlashCommandBuilder().setName('settings').setDescription('設定変更').addStringOption(o=>o.setName('key').setDescription('項目').setRequired(true).addChoices({name:'監視トークン',value:'monitoredTokens'},{name:'買い条件',value:'buyThreshold'},{name:'売り条件',value:'sellThreshold'},{name:'損切り率',value:'stopLossPct'},{name:'利確率',value:'takeProfitPct'})).addStringOption(o=>o.setName('value').setDescription('値').setRequired(true)),
+ new SlashCommandBuilder().setName('stop').setDescription('緊急停止'),new SlashCommandBuilder().setName('reset-stop').setDescription('緊急停止解除'),
+].map(c=>c.toJSON());
+const client=new Client({intents:[GatewayIntentBits.Guilds]});
+async function api(endpoint,options={}){const r=await fetch(`${DASHBOARD_URL}${endpoint}`,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||`Dashboard API ${r.status}`);return d;}
+function reply(c){return{content:String(c).slice(0,1900),ephemeral:true};}function manage(i){return ADMIN_IDS.has(i.user.id)||Boolean(i.memberPermissions?.has(PermissionFlagsBits.ManageGuild));}function safe(a){return a?a.length>18?`${a.slice(0,8)}...${a.slice(-6)}`:a:'未設定';}
+client.once('ready',async c=>{const rest=new REST({version:'10'}).setToken(TOKEN);await rest.put(GUILD_ID?Routes.applicationGuildCommands(CLIENT_ID,GUILD_ID):Routes.applicationCommands(CLIENT_ID),{body:commands});console.log(`Discord bot logged in as ${c.user.tag}`);});
+client.on('interactionCreate',async i=>{if(!i.isChatInputCommand())return;try{const n=i.commandName;
+ if(n==='status'){const d=await api('/api/dashboard');return i.reply(reply(`状態: ${d.botStatus}\n自動売買: ${d.botEnabled?'ON':'OFF'}\n緊急停止: ${d.emergencyStop?'有効':'無効'}`));}
+ if(n==='balance'){const d=await api('/api/dashboard'),a=await api('/api/arc/status').catch(e=>({error:e.message}));return i.reply(reply(`paper残高: ${Number(d.cashBalance||0).toFixed(2)}\nArc: ${a.error||`${a.balanceNative??'-'} ${a.nativeSymbol||''}`}\nウォレット: ${safe(d.walletAddress)}`));}
+ if(n==='price'){const d=await api('/api/prices'),q=i.options.getString('token')?.toUpperCase(),v=q?{[q]:d.prices?.[q]}:d.prices;return i.reply(reply(`📈 価格\n${Object.entries(v||{}).map(([t,p])=>`${t}: ${Number(p).toFixed(8)} / volume ${Number(d.volumes?.[t]||0).toLocaleString()}`).join('\n')||'データなし'}`));}
+ if(n==='chart'){const q=i.options.getString('token',true),d=await api(`/api/token/${encodeURIComponent(q.toUpperCase())}/chart`),h=d.history||[];return i.reply(reply(`📊 ${d.symbol}\nコントラクト: ${d.contractAddress||'未登録'}\n価格: ${d.price??'-'}\n取引量: ${Number(d.volume||0).toLocaleString()}\n履歴点: ${h.length}\n※ Discordでは数値サマリーを表示。チャート画像はDashboardで確認できます。`));}
+ if(n==='buzz'){const q=i.options.getString('token',true),d=await api(`/api/social?token=${encodeURIComponent(q.toUpperCase())}`),v=Object.values(d.results||{})[0];return i.reply(reply(`🐦 Xバズり ${q}\n${v?.score===null?v?.message||'未取得':`スコア ${v?.score}/100\n投稿数: ${v?.posts}\nいいね: ${v?.likes}\nリポスト: ${v?.reposts}`}`));}
+ if(n==='add-token'){if(!manage(i))return i.reply(reply('この操作には管理権限が必要です。'));const address=i.options.getString('address',true),symbol=i.options.getString('symbol');const d=await api('/api/tokens/import',{method:'POST',body:JSON.stringify({address,symbol})});return i.reply(reply(`✅ ${d.token} を追加しました\nコントラクト: ${d.contractAddress}\n価格: ${d.meta.priceUsd||'-'}\nDEX: ${d.meta.dexId||'-'}\nArc対応チェーン: ${d.meta.chainId}`));}
+ if(!manage(i))return i.reply(reply('この操作には管理権限が必要です。'));
+ if(n==='on'||n==='off'){const d=await api('/api/toggle-bot',{method:'POST',body:JSON.stringify({enabled:n==='on'})});return i.reply(reply(`自動売買を${d.botEnabled?'ON':'OFF'}にしました。`));}if(n==='stop'){await api('/api/emergency-stop',{method:'POST'});return i.reply(reply('🚨 緊急停止しました。'));}if(n==='reset-stop'){await api('/api/emergency-reset',{method:'POST'});return i.reply(reply('緊急���止を解除しました。自動売買はOFFです。'));}
+ if(n==='conditions'||n==='risk'){const d=await api('/api/config');return i.reply(reply(n==='risk'?`損切り: ${d.stopLossPct}%\n利確: ${d.takeProfitPct}%`:`監視: ${(d.monitoredTokens||[]).join(', ')}\n買い: ${d.buyThreshold}%\n売り: ${d.sellThreshold}%`));}
+ if(n==='history'){const d=await api('/api/trades'),c=i.options.getInteger('count')||5;return i.reply(reply(`🧾 履歴\n${(d.tradeHistory||[]).slice(0,c).map(t=>`${t.action} ${t.token} @ ${t.price}`).join('\n')||'なし'}`));}
+ if(n==='settings'){const key=i.options.getString('key',true),value=i.options.getString('value',true);const payload=key==='monitoredTokens'?{monitoredTokens:value.split(',').map(x=>x.trim().toUpperCase())}:{[key]:value};await api('/api/config',{method:'POST',body:JSON.stringify(payload)});return i.reply(reply(`設定を更新: ${key} = ${value}`));}
+ }catch(e){console.error(e.message);return i.reply(reply(`処理に失敗しました: ${e.message}`));}});client.login(TOKEN);

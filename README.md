@@ -1,20 +1,20 @@
-# チャート・取引量・Xバズり指標
+# コントラクトアドレスによるアルトコイン追加
 
-- 価格チャート: paper trading の価格更新履歴を Canvas で表示
-- 取引量: paper market の模擬 volume を表示
-- Xバズり: `X_BEARER_TOKEN` を設定すると X API v2 Recent Search から直近投稿を取得し、投稿数・いいね・リポスト等を使った0〜100の参考スコアを表示
+Dashboard の「コントラクトアドレスから追加」API、または Discord の `/add-token` を使います。
 
-## X API設定
-
-`.env` または Replit Secrets に次を追加します。
-
-```dotenv
-X_BEARER_TOKEN=あなたのX API Bearer Token
-X_SEARCH_LANG=ja
+```bash
+curl -X POST http://localhost:3000/api/tokens/import \
+  -H 'content-type: application/json' \
+  -d '{"address":"0xコントラクトアドレス"}'
 ```
 
-トークン未設定時は取得不能として表示します。Xの「バズり」スコアは公式ランキングではなく、直近検索結果の反応量から算出した参考値です。X APIの利用枠・検索仕様・認証エラーによって取得できない場合があります。
+アドレスを DEX Screener の token API で検索し、最大流動性のペアからシンボル、名称、価格、24h取引量、DEX、ペアアドレスを取得して監視対象へ追加します。`ARC_DEX_CHAIN_ID` を設定すると、そのチェーンだけに絞り込めます。
 
-## 重要な安全事項
+Discord:
+- `/add-token address:0x... symbol:任意` — コントラクトから追加
+- `/chart token:SYMBOL` — 価格・取引量・チャート履歴点
+- `/buzz token:SYMBOL` — X API v2 のバズり参考スコア
 
-価格と取引量は外部取引所のリアルタイム値ではなく、paper trading用の模擬値です。実データを使う場合は、別途、利用規約に従った市場データAPIを接続してください。
+コントラクトアドレスは EVM の `0x` 形式で、公開情報の取得にのみ使います。秘密鍵は不要です。
+
+X指標には `X_BEARER_TOKEN` が必要です。スコアは公式ランキングではなく、X API v2 の直近検索結果に含まれる投稿数・いいね・リポスト等から計算した参考値です。
