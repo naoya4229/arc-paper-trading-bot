@@ -1,51 +1,20 @@
-# Arc Paper Trading Bot
+# チャート・取引量・Xバズり指標
 
-Arc EVMネットワークへ**読み取り専用**で接続する paper trading 管理アプリです。公開ウォレットアドレスのネイティブ残高と Arc の実際の Chain ID を JSON-RPC から取得します。秘密鍵の読み込み、署名、送金、実トランザクション送信は実装していません。
+- 価格チャート: paper trading の価格更新履歴を Canvas で表示
+- 取引量: paper market の模擬 volume を表示
+- Xバズり: `X_BEARER_TOKEN` を設定すると X API v2 Recent Search から直近投稿を取得し、投稿数・いいね・リポスト等を使った0〜100の参考スコアを表示
 
-## セットアップ
+## X API設定
 
-`.env.example` を `.env` にコピーし、次を設定します。
+`.env` または Replit Secrets に次を追加します。
 
 ```dotenv
-APP_MODE=paper
-PAPER_TRADING=true
-ARC_RPC_URL=https://your-arc-rpc.example
-ARC_NATIVE_SYMBOL=ARC
-WALLET_ADDRESS=0x公開ウォレットアドレス
+X_BEARER_TOKEN=あなたのX API Bearer Token
+X_SEARCH_LANG=ja
 ```
 
-`WALLET_ADDRESS` は残高を読むだけの公開 EVM アドレスです。`PRIVATE_KEY` は不要で、設定しないでください。
+トークン未設定時は取得不能として表示します。Xの「バズり」スコアは公式ランキングではなく、直近検索結果の反応量から算出した参考値です。X APIの利用枠・検索仕様・認証エラーによって取得できない場合があります。
 
-## 起動
+## 重要な安全事項
 
-```bash
-npm install
-npm start
-```
-
-- Dashboard: `http://localhost:3000`
-- Arc ウォレット状態: `GET /api/arc/status`
-- 任意アドレスの残高確認: `GET /api/arc/status?address=0x...`
-
-Arc API は `eth_chainId` と `eth_getBalance` のみを使用します。RPC の値が未設定・到達不能な場合は、アプリは paper trading を維持したまま Arc 接続を未接続として返します。
-
-## Discord コマンド
-
-- `/on`, `/off`, `/status` — 自動売買の ON/OFF と状態
-- `/balance` — paper 残高と Arc ウォレットアドレス
-- `/price` — 模擬価格
-- `/conditions` — 買い・売り条件
-- `/risk` — 損切り・利確
-- `/history` — 取引履歴
-- `/settings` — 監視トークン、条件、リスク設定
-- `/stop`, `/reset-stop` — 緊急停止と解除
-
-管理操作は Discord サーバーの Manage Guild 権限、または `DISCORD_ADMIN_USER_IDS` に登録したユーザーだ��が実行できます。
-
-## 安全制約
-
-- `APP_MODE=paper` と `PAPER_TRADING=true` が必須です。
-- Arc 接続は読み取り専用です。
-- 秘密鍵・署名機能・トランザクション送信機能はありません。
-- 価格、残高、売買履歴は paper trading 用です。Arc の実残高は `/api/arc/status` の読み取り値として別途表示されます。
-- Bot Token、秘密情報、秘密鍵を GitHub やチャットへ貼り付けず、Replit Secrets 等で管理してください。
+価格と取引量は外部取引所のリアルタイム値ではなく、paper trading用の模擬値です。実データを使う場合は、別途、利用規約に従った市場データAPIを接続してください。
